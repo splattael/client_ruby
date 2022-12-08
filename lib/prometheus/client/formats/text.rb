@@ -74,8 +74,8 @@ module Prometheus
           def labels(set)
             return if set.empty?
 
-            strings = set.each_with_object([]) do |(key, value), memo|
-              memo << format(LABEL, key, escape(value, :label))
+            strings = set.map do |key, value|
+              format(LABEL, key, escape(value, :label))
             end
 
             "{#{strings.join(SEPARATOR)}}"
