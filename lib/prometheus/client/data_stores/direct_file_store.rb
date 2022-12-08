@@ -137,9 +137,7 @@ module Prometheus
                   # Labels come as a query string, and CGI::parse returns arrays for each key
                   # "foo=bar&x=y" => { "foo" => ["bar"], "x" => ["y"] }
                   # Turn the keys back into symbols, and remove the arrays
-                  label_set = CGI::parse(labelset_qs).map do |k, vs|
-                    [k.to_sym, vs.first]
-                  end.to_h
+                  label_set = parse_pairs(labelset_qs)
 
                   stores_data[label_set] << [v, ts]
                 end
@@ -156,6 +154,15 @@ module Prometheus
           end
 
           private
+
+          # Stripped-down implementation of CGI::parse.
+          def parse_pairs(query)
+            query.split('&').to_h do |pairs|
+              key, value = pairs.split('=', 2).map { CGI.unescape(_1) }
+
+              [key.to_sym, value]
+            end
+          end
 
           def in_process_sync
             @lock.synchronize { yield }
