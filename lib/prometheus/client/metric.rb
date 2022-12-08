@@ -111,10 +111,7 @@ module Prometheus
       end
 
       def stringify_values(labels)
-        stringified = {}
-        labels.each { |k,v| stringified[k] = v.to_s }
-
-        stringified
+        labels.transform_values(&:to_s)
       end
     end
   end
