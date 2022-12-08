@@ -210,7 +210,7 @@ module Prometheus
               values = values.map(&:first) # Discard timestamps
 
               if @values_aggregation_mode == SUM
-                values.inject { |sum, element| sum + element }
+                values.sum
               elsif @values_aggregation_mode == MAX
                 values.max
               elsif @values_aggregation_mode == MIN
