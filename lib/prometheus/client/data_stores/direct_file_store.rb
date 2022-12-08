@@ -205,7 +205,7 @@ module Prometheus
             # so for all aggregations except `MOST_RECENT`, we need to only take the
             # first value in each entry and ignore the second.
             if @values_aggregation_mode == MOST_RECENT
-              latest_tuple = values.max { |a,b| a[1] <=> b[1] }
+              latest_tuple = values.max_by { |a| a[1] }
               latest_tuple.first # return the value without the timestamp
             else
               values = values.map(&:first) # Discard timestamps

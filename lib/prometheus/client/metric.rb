@@ -91,7 +91,7 @@ module Prometheus
         unless name.is_a?(Symbol)
           raise ArgumentError, 'metric name must be a symbol'
         end
-        unless name.to_s =~ /\A[a-zA-Z_:][a-zA-Z0-9_:]*\Z/
+        unless /\A[a-zA-Z_:][a-zA-Z0-9_:]*\Z/.match?(name.to_s)
           msg = 'metric name must match /[a-zA-Z_:][a-zA-Z0-9_:]*/'
           raise ArgumentError, msg
         end

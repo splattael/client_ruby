@@ -65,7 +65,7 @@ module Prometheus
           raise ReservedLabelError, "label #{key} must not start with __"
         end
 
-        unless key.to_s =~ LABEL_NAME_REGEX
+        unless LABEL_NAME_REGEX.match?(key.to_s)
           raise InvalidLabelError, "label name must match /#{LABEL_NAME_REGEX}/"
         end
 

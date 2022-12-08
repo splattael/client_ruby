@@ -35,11 +35,11 @@ module Prometheus
       end
 
       def self.linear_buckets(start:, width:, count:)
-        count.times.map { |idx| start.to_f + idx * width }
+        Array.new(count) { |idx| start.to_f + idx * width }
       end
 
       def self.exponential_buckets(start:, factor: 2, count:)
-        count.times.map { |idx| start.to_f * factor ** idx }
+        Array.new(count) { |idx| start.to_f * factor ** idx }
       end
 
       def with_labels(labels)
