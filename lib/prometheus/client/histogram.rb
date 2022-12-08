@@ -92,8 +92,8 @@ module Prometheus
         all_buckets = buckets + ["+Inf", "sum"]
 
         @store.synchronize do
-          all_buckets.each_with_object({}) do |upper_limit, acc|
-            acc[upper_limit.to_s] = @store.get(labels: base_label_set.merge(le: upper_limit.to_s))
+          all_buckets.to_h do |upper_limit|
+            [upper_limit.to_s, @store.get(labels: base_label_set.merge(le: upper_limit.to_s))]
           end.tap do |acc|
             accumulate_buckets(acc)
           end
@@ -106,7 +106,7 @@ module Prometheus
 
         result = values.each_with_object({}) do |(label_set, v), acc|
           actual_label_set = label_set.reject{|l| l == :le }
-          acc[actual_label_set] ||= @buckets.map{|b| [b.to_s, 0.0]}.to_h
+          acc[actual_label_set] ||= @buckets.to_h{|b| [b.to_s, 0.0]}
           acc[actual_label_set][label_set[:le].to_s] = v
         end
 

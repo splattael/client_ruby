@@ -145,10 +145,13 @@ module Prometheus
             end
 
             # Aggregate all the different values for each label_set
-            aggregate_hash = Hash.new { |hash, key| hash[key] = 0.0 }
-            stores_data.each_with_object(aggregate_hash) do |(label_set, values), acc|
-              acc[label_set] = aggregate_values(values)
+            aggregate_hash = stores_data.transform_values do |values|
+              aggregate_values(values)
             end
+
+            aggregate_hash.default = 0.0
+
+            aggregate_hash
           end
 
           private

@@ -34,8 +34,8 @@ module Prometheus
         internal_counters = ["count", "sum"]
 
         @store.synchronize do
-          internal_counters.each_with_object({}) do |counter, acc|
-            acc[counter] = @store.get(labels: base_label_set.merge(quantile: counter))
+          internal_counters.to_h do |counter|
+            [counter, @store.get(labels: base_label_set.merge(quantile: counter))]
           end
         end
       end
