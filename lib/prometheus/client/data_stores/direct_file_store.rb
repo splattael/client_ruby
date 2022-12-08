@@ -135,9 +135,6 @@ module Prometheus
               begin
                 store = FileMappedDict.new(file_path, true)
                 store.all_values.each do |(labelset_qs, v, ts)|
-                  # Labels come as a query string, and CGI::parse returns arrays for each key
-                  # "foo=bar&x=y" => { "foo" => ["bar"], "x" => ["y"] }
-                  # Turn the keys back into symbols, and remove the arrays
                   label_set = parse_pairs(labelset_qs)
 
                   stores_data[label_set] << [v, ts]
@@ -156,12 +153,11 @@ module Prometheus
 
           private
 
-          # Stripped-down implementation of CGI::parse.
           def parse_pairs(query)
             query.split('&').to_h do |pairs|
-              key, value = pairs.split('=', 2).map { CGI.unescape(_1) }
+              key, value = pairs.split('=', 2)
 
-              [key.to_sym, value]
+              [key.to_sym, CGI.unescape(value)]
             end
           end
 
@@ -174,7 +170,7 @@ module Prometheus
               labels[:pid] = process_id
             end
 
-            labels.sort.map{|k,v| "#{CGI::escape(k.to_s)}=#{CGI::escape(v.to_s)}"}.join('&')
+            labels.sort.map{|k,v| "#{k}=#{CGI::escape(v.to_s)}"}.join('&')
           end
 
           def internal_store
