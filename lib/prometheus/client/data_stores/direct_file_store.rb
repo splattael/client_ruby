@@ -134,7 +134,7 @@ module Prometheus
             # the file, and `flock`ing it, which prevents inconsistent reads
             stores_for_metric.each do |file_path|
               begin
-                store = FileMappedDict.new(file_path, true)
+                store = FileMappedDict::ReadonlyIterator.new(file_path)
                 store.each_value do |labelset_qs, v, ts|
                   label_set = parse_pairs(labelset_qs)
 
@@ -291,33 +291,20 @@ module Prometheus
 
           attr_reader :capacity, :used, :positions
 
-          def initialize(filename, readonly = false)
+          def initialize(filename)
             @positions = {}
             @used = 0
 
-            open_file(filename, readonly)
+            open_file(filename)
             @used = @f.read(4).unpack('l')[0] if @capacity > 0
 
             if @used > 0
               # File already has data. Read the existing values
               with_file_lock { populate_positions }
             else
-              # File is empty. Init the `used` counter, if we're in write mode
-              if !readonly
-                @used = 8
-                @f.seek(0)
-                @f.write([@used].pack('l'))
-              end
-            end
-          end
-
-          def each_value
-            with_file_lock do
-              @positions.map do |key, pos|
-                @f.seek(pos)
-                value, timestamp = @f.read(16).unpack('dd')
-                yield key, value, timestamp
-              end
+              @used = 8
+              @f.seek(0)
+              @f.write([@used].pack('l'))
             end
           end
 
@@ -356,17 +343,11 @@ module Prometheus
 
           private
 
-          def open_file(filename, readonly)
-            mode = if readonly
-                     "r"
-                   elsif File.exist?(filename)
-                     "r+b"
-                   else
-                     "w+b"
-                   end
+          def open_file(filename)
+            mode = File.exist?(filename) ? "r+b" : "w+b"
 
             @f = File.open(filename, mode)
-            if @f.size == 0 && !readonly
+            if @f.size == 0
               resize_file(INITIAL_FILE_SIZE)
             end
             @capacity = @f.size
@@ -402,6 +383,43 @@ module Prometheus
               key = @f.read(padded_len).unpack("A#{padded_len}")[0].strip
               @positions[key] = @f.pos
               @f.seek(16, :CUR)
+            end
+          end
+
+          class ReadonlyIterator
+            def initialize(filename)
+              @f = File.open(filename, "r")
+              @used = @f.read(4).unpack('l')[0] if @f.size > 0
+            end
+
+            def each_value
+              pos = 8
+              with_file_lock do
+                @f.seek(pos)
+
+                padded_len = @f.read(4).unpack('l')[0]
+                pos += 4
+
+                while pos < @used
+                  size = padded_len + 20
+                  pos += size
+                  key, value, timestamp, padded_len = @f.read(size).unpack("A#{padded_len}ddl")
+                  yield key, value, timestamp
+                end
+              end
+            end
+
+            def close
+              @f.close
+            end
+
+            private
+
+            def with_file_lock
+              @f.flock(File::LOCK_EX)
+              yield
+            ensure
+              @f.flock(File::LOCK_UN)
             end
           end
         end
