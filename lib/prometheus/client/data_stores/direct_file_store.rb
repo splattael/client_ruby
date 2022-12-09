@@ -134,7 +134,7 @@ module Prometheus
             stores_for_metric.each do |file_path|
               begin
                 store = FileMappedDict.new(file_path, true)
-                store.all_values.each do |(labelset_qs, v, ts)|
+                store.each_value do |labelset_qs, v, ts|
                   label_set = parse_pairs(labelset_qs)
 
                   stores_data[label_set] << [v, ts]
@@ -260,13 +260,12 @@ module Prometheus
             end
           end
 
-          # Return a list of key-value pairs
-          def all_values
+          def each_value
             with_file_lock do
               @positions.map do |key, pos|
                 @f.seek(pos)
                 value, timestamp = @f.read(16).unpack('dd')
-                [key, value, timestamp]
+                yield key, value, timestamp
               end
             end
           end
