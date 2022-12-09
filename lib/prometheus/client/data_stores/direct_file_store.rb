@@ -80,6 +80,7 @@ module Prometheus
             @metric_name = metric_name
             @store_settings = store_settings
             @values_aggregation_mode = metric_settings[:aggregation]
+            @aggregator = aggregator_for(@values_aggregation_mode)
             @store_opened_by_pid = nil
 
             @lock = Monitor.new
@@ -127,7 +128,7 @@ module Prometheus
           end
 
           def all_values
-            stores_data = Hash.new{ |hash, key| hash[key] = [] }
+            aggregate_hash = Hash.new { 0.0 }
 
             # There's no need to call `synchronize` here. We're opening a second handle to
             # the file, and `flock`ing it, which prevents inconsistent reads
@@ -137,21 +138,17 @@ module Prometheus
                 store.each_value do |labelset_qs, v, ts|
                   label_set = parse_pairs(labelset_qs)
 
-                  stores_data[label_set] << [v, ts]
+                  data = aggregate_hash.fetch(label_set) do
+                    aggregate_hash[label_set] = @aggregator.new
+                  end
+                  data.aggregate(v, ts)
                 end
               ensure
                 store.close if store
               end
             end
 
-            # Aggregate all the different values for each label_set
-            aggregate_hash = stores_data.transform_values do |values|
-              aggregate_values(values)
-            end
-
-            aggregate_hash.default = 0.0
-
-            aggregate_hash
+            aggregate_hash.transform_values!(&:value)
           end
 
           private
@@ -199,27 +196,81 @@ module Prometheus
             Process.pid
           end
 
-          def aggregate_values(values)
-            # Each entry in the `values` array is a tuple of `value` and `timestamp`,
-            # so for all aggregations except `MOST_RECENT`, we need to only take the
-            # first value in each entry and ignore the second.
-            if @values_aggregation_mode == MOST_RECENT
-              latest_tuple = values.max_by { |a| a[1] }
-              latest_tuple.first # return the value without the timestamp
+          def aggregator_for(values_aggregation_mode)
+            case values_aggregation_mode
+            when MOST_RECENT then Aggregation::MostRecent
+            when SUM         then Aggregation::Sum
+            when MAX         then Aggregation::Max
+            when MIN         then Aggregation::Min
+            when ALL         then Aggregation::All
             else
-              values = values.map(&:first) # Discard timestamps
+              raise InvalidStoreSettingsError,
+                "Invalid Aggregation Mode: #{ values_aggregation_mode }"
+            end
+          end
 
-              if @values_aggregation_mode == SUM
-                values.sum
-              elsif @values_aggregation_mode == MAX
-                values.max
-              elsif @values_aggregation_mode == MIN
-                values.min
-              elsif @values_aggregation_mode == ALL
-                values.first
-              else
-                raise InvalidStoreSettingsError,
-                      "Invalid Aggregation Mode: #{ @values_aggregation_mode }"
+          module Aggregation
+            class Sum
+              attr_reader :value
+
+              def initialize
+                @value = 0
+              end
+
+              def aggregate(value, _ts)
+                @value += value
+              end
+            end
+
+            class Max
+              attr_reader :value
+
+              def initialize
+                @value = nil
+              end
+
+              def aggregate(value, _ts)
+                @value = value if @value.nil? || value > @value
+              end
+            end
+
+            class Min
+              attr_reader :value
+
+              def initialize
+                @value = nil
+              end
+
+              def aggregate(value, _ts)
+                @value = value if @value.nil? || value < @value
+              end
+            end
+
+            class All
+              attr_reader :value
+
+              def initialize
+                @value = nil
+              end
+
+              def aggregate(value, _ts)
+                @value = value if @value.nil?
+              end
+            end
+
+            class MostRecent
+              attr_reader :value
+
+              def initialize
+                @timestamp = nil
+                @value = nil
+              end
+
+              def aggregate(value, ts)
+                if @timestamp.nil? || ts > @timestamp
+                  @timestamp = ts
+                  @value = value
+                end
               end
             end
           end

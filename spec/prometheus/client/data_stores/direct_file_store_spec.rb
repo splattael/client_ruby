@@ -67,12 +67,11 @@ describe Prometheus::Client::DataStores::DirectFileStore do
     # This is basically just for coverage of a safety clause that can never be reached
     allow(subject).to receive(:validate_metric_settings) # turn off validation
 
-    metric = subject.for_metric(:metric_name,
-                                metric_type: :counter,
-                                metric_settings: { aggregation: :invalid })
-    metric.increment(labels: {}, by: 1)
-
     expect do
+      metric = subject.for_metric(:metric_name,
+                                  metric_type: :counter,
+                                  metric_settings: { aggregation: :invalid })
+
       metric.all_values
     end.to raise_error(Prometheus::Client::DataStores::DirectFileStore::InvalidStoreSettingsError)
   end
